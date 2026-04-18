@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لعبة عناصر التكرار في Alice</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#f0f4f8;min-height:100vh;direction:rtl;}
+.header{background:#1a4a8a;color:white;padding:14px 20px;text-align:center;}
+.header h1{font-size:18px;font-weight:700;}
+.header p{font-size:12px;opacity:.8;margin-top:3px;}
+.wrap{max-width:500px;margin:0 auto;padding:14px;}
+.screen{display:none;}.screen.active{display:block;}
+.card{background:white;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+h2{font-size:16px;font-weight:700;color:#1e293b;margin-bottom:10px;text-align:center;}
+p{font-size:13px;color:#475569;line-height:1.6;}
+select{width:100%;padding:10px 13px;border-radius:10px;border:1.5px solid #e2e8f0;font-size:14px;font-family:inherit;color:#1e293b;background:#f8fafc;outline:none;margin-bottom:10px;}
+select:focus{border-color:#2563eb;background:white;}
+.btn{display:block;width:100%;padding:11px;border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;border:none;margin-bottom:8px;text-align:center;transition:all .2s;}
+.btn-blue{background:#2563eb;color:white;}.btn-blue:hover{background:#1d4ed8;}
+.btn-green{background:#16a34a;color:white;}.btn-green:hover{background:#15803d;}
+.btn-gray{background:#f1f5f9;color:#1e293b;border:1.5px solid #e2e8f0;}.btn-gray:hover{background:#e2e8f0;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.badge{display:inline-block;padding:3px 11px;border-radius:99px;font-size:11px;font-weight:700;}
+.prog-bar{height:7px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-bottom:14px;}
+.prog-fill{height:100%;border-radius:99px;background:#2563eb;transition:width .5s;}
+.el-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px;}
+.el-card{border-radius:12px;padding:14px 10px;cursor:pointer;border:2px solid transparent;transition:all .2s;text-align:center;}
+.el-card:hover{transform:translateY(-2px);}
+.el-card.sel{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15);transform:translateY(-2px);}
+.el-icon{font-size:26px;margin-bottom:5px;}
+.el-name{font-size:17px;font-weight:800;margin-bottom:3px;}
+.el-hint{font-size:11px;opacity:.7;}
+.opt{padding:12px 14px;border-radius:10px;border:1.5px solid #e2e8f0;margin-bottom:7px;cursor:pointer;font-size:13px;color:#1e293b;transition:all .15s;background:white;}
+.opt:hover{border-color:#93c5fd;background:#eff6ff;}
+.opt.sel{border-color:#2563eb;background:#eff6ff;font-weight:600;}
+.opt.correct{border-color:#16a34a;background:#f0fdf4;color:#15803d;}
+.opt.wrong{border-color:#dc2626;background:#fef2f2;color:#991b1b;}
+.msg{padding:13px 15px;border-radius:12px;font-size:13px;line-height:1.6;text-align:center;margin:10px 0;}
+.msg-ok{background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;}
+.msg-err{background:#fef2f2;color:#991b1b;border:1.5px solid #fecaca;}
+.msg-info{background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;}
+.done-c{text-align:center;padding:1rem 0;}
+.done-c .big{font-size:52px;margin-bottom:10px;}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.group-info{border-radius:10px;padding:12px;margin-bottom:12px;}
+.group-info h3{font-size:14px;font-weight:700;margin-bottom:6px;}
+.member-chip{display:inline-block;border-radius:99px;padding:3px 10px;font-size:12px;margin:2px;background:rgba(255,255,255,.6);}
+.leader-chip{background:#fde68a;color:#92400e;font-weight:700;}
+
+/* NOTIFICATION CARDS */
+.notif-card{border-radius:12px;padding:13px 14px;margin-bottom:8px;border:1.5px solid;animation:slideIn .35s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+.notif-pending{background:#fffbeb;border-color:#fde68a;color:#92400e;}
+.notif-done{background:#f0fdf4;border-color:#bbf7d0;color:#15803d;}
+.notif-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.notif-name{font-weight:700;font-size:14px;}
+.notif-time{font-size:11px;opacity:.7;}
+.notif-el-box{background:white;border-radius:8px;padding:8px 12px;margin-top:6px;border:1px solid rgba(0,0,0,.07);}
+.notif-el-name{font-size:16px;font-weight:800;margin-bottom:3px;}
+.notif-el-def{font-size:12px;line-height:1.5;opacity:.85;}
+.notif-pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;margin-left:5px;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.notif-wait-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-left:5px;}
+.leader-stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px;}
+.lstat{background:white;border-radius:12px;padding:12px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06);}
+.lstat-n{font-size:24px;font-weight:800;}
+.lstat-l{font-size:11px;color:#64748b;margin-top:2px;}
+
+.gcard{background:white;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,.07);}
+.gcard-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f1f5f9;}
+.ri{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;margin-bottom:5px;}
+.ri-name{flex:1;font-size:13px;color:#1e293b;font-weight:600;}
+.ri-el{font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;}
+.enc-box{margin-top:8px;font-size:12px;padding:7px 12px;border-radius:8px;text-align:center;font-weight:600;}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
+.stat{background:white;border-radius:12px;padding:13px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06);}
+.stat-n{font-size:26px;font-weight:800;color:#2563eb;}
+.stat-l{font-size:11px;color:#64748b;margin-top:2px;}
+.refresh-note{font-size:11px;color:#94a3b8;text-align:center;margin-top:8px;}
+
+/* ANSWER SUMMARY BOX */
+.answer-summary{border-radius:10px;padding:12px 14px;margin-top:8px;}
+.answer-summary .ans-icon{font-size:22px;}
+.answer-summary .ans-name{font-size:18px;font-weight:800;margin:4px 0 2px;}
+.answer-summary .ans-def{font-size:13px;line-height:1.55;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎮 لعبة عناصر التكرار في Alice</h1>
+  <p>نشاط جماعي — 7 مجموعات</p>
+</div>
+
+<div class="wrap">
+
+<!-- HOME -->
+<div id="s-home" class="screen active">
+  <div class="card" style="margin-top:12px;">
+    <h2>من أنتِ؟</h2>
+    <p style="text-align:center;margin-bottom:12px;">اختاري اسمكِ من القائمة</p>
+    <select id="sel-name" class="name-sel">
+      <option value="">— اختاري اسمكِ —</option>
+    </select>
+    <div id="role-display" style="display:none;" class="msg msg-info"></div>
+    <div id="teacher-opt" style="display:none;margin-bottom:8px;">
+      <button class="btn btn-blue" onclick="goTeacher()">دخول لوحة المعلمة 👩‍🏫</button>
+    </div>
+    <button class="btn btn-blue" id="btn-start" onclick="startApp()" style="display:none;">ابدأي ▶</button>
+  </div>
+  <div class="card" style="background:#f0fdf4;border:1.5px solid #bbf7d0;">
+    <p style="color:#15803d;font-size:12px;text-align:center;">
+      <strong>كيف تعمل اللعبة؟</strong><br><br>
+      ⬩ كل طالبة تتعلم عنصراً واحداً من عناصر التكرار<br>
+      ⬩ تُرسل إجابتها فوراً لقائدة المجموعة<br>
+      ⬩ القائدة تتابع وتُرسل الإجابات للمعلمة
+    </p>
+  </div>
+</div>
+
+<!-- STUDENT -->
+<div id="s-student" class="screen">
+  <div style="margin-top:10px;">
+    <div class="top-bar">
+      <span id="stu-tag" style="font-size:13px;color:#475569;font-weight:700;"></span>
+      <span class="badge" style="background:#eff6ff;color:#1e40af;">طالبة</span>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" id="stu-p" style="width:10%"></div></div>
+    <div id="stu-group-info" class="group-info"></div>
+
+    <div id="stu-s1">
+      <div class="card">
+        <h2>اختاري عنصرك</h2>
+        <p style="text-align:center;margin-bottom:12px;">كل طالبة تختار عنصراً مختلفاً</p>
+        <div class="el-grid" id="el-grid"></div>
+      </div>
+    </div>
+
+    <div id="stu-s2" style="display:none;">
+      <div class="card">
+        <div id="el-banner" style="border-radius:10px;padding:11px;text-align:center;margin-bottom:12px;">
+          <div class="el-icon" id="b-icon"></div>
+          <div class="el-name" id="b-name"></div>
+          <div style="font-size:11px;margin-top:4px;" id="b-desc"></div>
+        </div>
+        <h2 id="q-txt" style="font-size:14px;margin-bottom:12px;"></h2>
+        <div id="opts"></div>
+        <div id="stu-fb" style="display:none;" class="msg"></div>
+        <button class="btn btn-blue" id="btn-ok" onclick="confirmAns()" disabled>تأكيد الإجابة ✓</button>
+      </div>
+    </div>
+
+    <div id="stu-s3" style="display:none;">
+      <div class="card done-c">
+        <div class="big">🌟</div>
+        <h2>أحسنتِ!</h2>
+        <div id="stu-done-enc" class="msg msg-ok" style="margin-top:8px;font-weight:700;font-size:14px;"></div>
+        <div id="stu-answer-summary" class="answer-summary" style="text-align:right;"></div>
+        <div class="msg" style="background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;margin-top:10px;font-size:12px;">
+          تم إرسال إجابتكِ لقائدة المجموعة تلقائياً ✓
+        </div>
+        <p style="color:#64748b;font-size:12px;margin-top:8px;text-align:center;">انتظري قائدة مجموعتكِ لإرسال الإجابات للمعلمة.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADER -->
+<div id="s-leader" class="screen">
+  <div style="margin-top:10px;">
+    <div class="top-bar">
+      <span id="lead-tag" style="font-size:13px;color:#475569;font-weight:700;"></span>
+      <span class="badge" style="background:#fefce8;color:#854d0e;">قائدة ⭐</span>
+    </div>
+
+    <div id="leader-main">
+      <div id="leader-group-info" class="group-info"></div>
+
+      <div class="leader-stats">
+        <div class="lstat">
+          <div class="lstat-n" id="l-done" style="color:#16a34a;">0</div>
+          <div class="lstat-l">أنهت النشاط</div>
+        </div>
+        <div class="lstat">
+          <div class="lstat-n" id="l-total" style="color:#2563eb;">0</div>
+          <div class="lstat-l">إجمالي المجموعة</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin:0;">إجابات الطالبات</h2>
+          <span style="font-size:11px;color:#94a3b8;" id="l-refresh-note">تحديث تلقائي</span>
+        </div>
+        <div id="leader-notifs"></div>
+      </div>
+
+      <button class="btn btn-green" id="btn-send-leader" onclick="sendLeader()">📤 إرسال للمعلمة</button>
+      <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:4px;">يمكنكِ الإرسال حتى لو لم تنتهِ جميع الطالبات</p>
+    </div>
+
+    <div id="leader-done" style="display:none;">
+      <div class="card done-c">
+        <div class="big">📤</div>
+        <h2>تم الإرسال!</h2>
+        <div class="msg msg-ok">رائع! إجابات مجموعتكِ وصلت للمعلمة بنجاح 🎉</div>
+        <button class="btn btn-gray" onclick="reloadLeader()" style="margin-top:10px;">متابعة الطالبات</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TEACHER -->
+<div id="s-teacher" class="screen">
+  <div style="margin-top:10px;">
+    <div class="top-bar">
+      <span style="font-size:14px;font-weight:700;color:#1e293b;">لوحة المعلمة</span>
+      <span class="badge" style="background:#fffbeb;color:#92400e;">معلمة 👩‍🏫</span>
+    </div>
+    <div id="teach-wait">
+      <div class="stats">
+        <div class="stat"><div class="stat-n" id="st-g">0</div><div class="stat-l">مجموعة أرسلت</div></div>
+        <div class="stat"><div class="stat-n" id="st-s">0</div><div class="stat-l">طالبة أنهت</div></div>
+      </div>
+      <div class="card">
+        <h2>المجموعات</h2>
+        <div id="incoming-list"></div>
+      </div>
+      <button class="btn btn-blue" onclick="showRes()">عرض النتائج والتقييم 🏆</button>
+      <button class="btn btn-gray" onclick="clearAll()" style="margin-top:4px;">🗑️ مسح البيانات</button>
+      <p class="refresh-note">تحديث تلقائي كل 10 ثوانٍ</p>
+    </div>
+    <div id="teach-res" style="display:none;">
+      <h2 style="margin-bottom:14px;">نتائج المجموعات 🏆</h2>
+      <div id="res-out"></div>
+      <div class="msg msg-info" id="gen-enc" style="margin-top:4px;"></div>
+      <button class="btn btn-gray" onclick="backWait()" style="margin-top:8px;">← العودة</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const STUDENTS = [
+  'ان اسامه','انوار يحيى','ايه علي','رحمه ناصر','رحيق هياب','رزان حسين','رقيه مصطفى',
+  'ريان رزق','ريف محمد','ريم سعيد','ريم عبدالرحمن','زينب حمدي','شعاع محمد','شوق سعود',
+  'عائشه ابراهيم','عائشه محمدصالح','عباده عوض الله','غاليه عبدالعزيز','غفران خالد',
+  'فاطمه احمد','ليان بكر','مرجانه ماجد','ملك محمود','منه محمد','ميار عبدالمنعم',
+  'وعد حسن','ياسمين احمد'
+];
+
+const GROUPS_DATA = [
+  { id:1, name:'المجموعة الأولى',   color:'#eff6ff', tcolor:'#1e40af', members:['ان اسامه','انوار يحيى','ايه علي','رحمه ناصر'],           leader:'رحمه ناصر' },
+  { id:2, name:'المجموعة الثانية',  color:'#f0fdf4', tcolor:'#15803d', members:['رحيق هياب','رزان حسين','رقيه مصطفى','ريان رزق'],       leader:'رقيه مصطفى' },
+  { id:3, name:'المجموعة الثالثة', color:'#fffbeb', tcolor:'#92400e', members:['ريف محمد','ريم سعيد','ريم عبدالرحمن','زينب حمدي'],      leader:'ريم عبدالرحمن' },
+  { id:4, name:'المجموعة الرابعة',  color:'#fef2f2', tcolor:'#991b1b', members:['شعاع محمد','شوق سعود','عائشه ابراهيم','عائشه محمدصالح'], leader:'شوق سعود' },
+  { id:5, name:'المجموعة الخامسة', color:'#f5f3ff', tcolor:'#4c1d95', members:['عباده عوض الله','غاليه عبدالعزيز','غفران خالد','فاطمه احمد'], leader:'فاطمه احمد' },
+  { id:6, name:'المجموعة السادسة', color:'#ecfdf5', tcolor:'#065f46', members:['ليان بكر','مرجانه ماجد','ملك محمود','منه محمد'],        leader:'مرجانه ماجد' },
+  { id:7, name:'المجموعة السابعة', color:'#fdf2f8', tcolor:'#831843', members:['ميار عبدالمنعم','وعد حسن','ياسمين احمد'],               leader:'ياسمين احمد' }
+];
+
+const ELEMENTS = [
+  { id:'begin', name:'Begin', icon:'▶', color:'#eff6ff', tc:'#1e40af', bc:'#bfdbfe',
+    desc:'يُنفَّذ أول مرة تكون فيها الحالة صحيحة',
+    def:'جزء Begin يُنفَّذ مرة واحدة فقط — أول مرة تكون فيها الحالة الشرطية صحيحة، وهو نقطة البداية للتكرار.',
+    q:'ما هو دور جزء Begin في جملة التكرار؟',
+    opts:['يُنفَّذ فقط عند انتهاء التكرار','يُنفَّذ أول مرة تكون فيها الحالة صحيحة','يتحقق من الحالة المشروطة','يُنفَّذ طوال فترة التكرار'],
+    correct:1, msg:'ممتازة! Begin هو نقطة الانطلاق 🌟' },
+  { id:'while', name:'While', icon:'🔄', color:'#f0fdf4', tc:'#15803d', bc:'#bbf7d0',
+    desc:'يحتوي على الحالة الشرطية التي تتحكم بالحدث',
+    def:'جزء While هو قلب جملة التكرار — يحتوي على الحالة الشرطية التي تتحكم في استمرار التكرار أو إيقافه.',
+    q:'ما وظيفة جزء While في جملة التكرار؟',
+    opts:['ينفذ الأحداث بعد انتهاء الشرط','يحتوي على الحالة الشرطية التي تتحكم بالحدث','يبدأ التكرار مرة واحدة فقط','يوقف التكرار فوراً'],
+    correct:1, msg:'رائعة! While هو قلب جملة التكرار 💚' },
+  { id:'during', name:'During', icon:'⚡', color:'#fffbeb', tc:'#92400e', bc:'#fde68a',
+    desc:'يحدث أثناء التنفيذ عندما تكون الحالة صحيحة',
+    def:'جزء During يُنفَّذ باستمرار طوال فترة التكرار — يحدث في كل مرة تكون فيها الحالة الشرطية صحيحة.',
+    q:'متى يُنفَّذ جزء During في جملة التكرار؟',
+    opts:['قبل بدء التكرار مباشرة','عند انتهاء التكرار فقط','أثناء التنفيذ عندما تكون الحالة صحيحة','يُنفَّذ مرة واحدة فقط في البداية'],
+    correct:2, msg:'أحسنتِ! During يعمل طوال فترة التكرار 🔥' },
+  { id:'end', name:'End', icon:'⏹', color:'#fef2f2', tc:'#991b1b', bc:'#fecaca',
+    desc:'يحدث عندما لا تصبح الحالة صحيحة',
+    def:'جزء End يُنفَّذ مرة واحدة عند نهاية التكرار — يحدث حين تصبح الحالة الشرطية خاطئة وينتهي التكرار.',
+    q:'متى يُنفَّذ جزء End في جملة التكرار؟',
+    opts:['في بداية كل تكرار','في منتصف التكرار','طوال فترة التكرار','عندما لا تصبح الحالة صحيحة بعد الآن'],
+    correct:3, msg:'عظيمة! End هو نهاية رحلة التكرار 🎯' }
+];
+
+const ENC_PERFECT=['مجموعة نجوم! أداء مثالي 🌟','ممتازات! إجابات صحيحة ١٠٠٪ ⭐','تألق رائع، واصلن التميز! 🏆'];
+const ENC_PARTIAL=['جهد جيد، راجعن التعريفات 📖','بداية رائعة، استمرن! 💡','قريبات من المثالية! 📚'];
+
+let currentUser='', currentGroup=null, isLeader=false;
+let selectedEl=null, selectedOpt=null;
+let groups=[], studentAnswers=[], refreshTimer=null, leaderTimer=null;
+
+function save(key,val){ try{ localStorage.setItem(key,JSON.stringify(val)); }catch(e){} }
+function load(key,def){ try{ return JSON.parse(localStorage.getItem(key)||JSON.stringify(def)); }catch(e){ return def; } }
+function loadGroups(){ groups=load('alice_v3_groups',[]); }
+function saveGroups(){ save('alice_v3_groups',groups); }
+function loadAnswers(){ studentAnswers=load('alice_v3_answers',[]); }
+function saveAnswers(){ save('alice_v3_answers',studentAnswers); }
+
+window.onload=function(){
+  const sel=document.getElementById('sel-name');
+  [...STUDENTS].sort((a,b)=>a.localeCompare(b,'ar')).forEach(n=>{
+    const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
+  });
+  const t=document.createElement('option'); t.value='__teacher__'; t.textContent='👩‍🏫 المعلمة'; sel.appendChild(t);
+  sel.onchange=onNameChange;
+};
+
+function onNameChange(){
+  const v=document.getElementById('sel-name').value;
+  const rd=document.getElementById('role-display');
+  const bs=document.getElementById('btn-start');
+  const to=document.getElementById('teacher-opt');
+  rd.style.display='none'; bs.style.display='none'; to.style.display='none';
+  if(!v) return;
+  if(v==='__teacher__'){ to.style.display='block'; return; }
+  const grp=GROUPS_DATA.find(g=>g.members.includes(v));
+  if(!grp){ rd.style.display='block'; rd.className='msg msg-err'; rd.textContent='الاسم غير موجود'; return; }
+  const isLead=grp.leader===v;
+  rd.style.display='block'; rd.className='msg msg-info';
+  rd.innerHTML=`<strong>${grp.name}</strong><br>زميلاتكِ: ${grp.members.filter(m=>m!==v).join(' · ')}<br>${isLead?'<strong style="color:#854d0e">⭐ أنتِ قائدة المجموعة</strong>':'القائدة: '+grp.leader}`;
+  bs.style.display='block'; bs.textContent=isLead?'دخول لوحة القائدة ⭐':'ابدأي النشاط ▶';
+}
+
+function startApp(){
+  const v=document.getElementById('sel-name').value;
+  if(!v||v==='__teacher__') return;
+  currentUser=v;
+  currentGroup=GROUPS_DATA.find(g=>g.members.includes(v));
+  isLeader=currentGroup&&currentGroup.leader===v;
+  show(isLeader?'s-leader':'s-student');
+  isLeader?initLeader():initStudent();
+}
+
+function goTeacher(){ show('s-teacher'); initTeacher(); }
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+
+/* ===== STUDENT ===== */
+function initStudent(){
+  document.getElementById('stu-tag').textContent=currentUser;
+  const gi=document.getElementById('stu-group-info');
+  gi.style.background=currentGroup.color;
+  gi.innerHTML=`<h3 style="color:${currentGroup.tcolor}">${currentGroup.name}</h3>
+    ${currentGroup.members.map(m=>`<span class="member-chip ${m===currentGroup.leader?'leader-chip':''}">${m}${m===currentGroup.leader?' ⭐':''}</span>`).join('')}`;
+  const grid=document.getElementById('el-grid'); grid.innerHTML='';
+  ELEMENTS.forEach(el=>{
+    const d=document.createElement('div'); d.className='el-card'; d.id='ec-'+el.id;
+    d.style.cssText=`background:${el.color};border-color:${el.bc};`;
+    d.innerHTML=`<div class="el-icon">${el.icon}</div><div class="el-name" style="color:${el.tc}">${el.name}</div><div class="el-hint" style="color:${el.tc}">اختاري هذا</div>`;
+    d.onclick=()=>pickEl(el.id);
+    grid.appendChild(d);
+  });
+}
+
+function pickEl(id){
+  document.querySelectorAll('.el-card').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('ec-'+id).classList.add('sel');
+  selectedEl=ELEMENTS.find(e=>e.id===id);
+  document.getElementById('stu-p').style.width='45%';
+  setTimeout(()=>{ document.getElementById('stu-s1').style.display='none'; document.getElementById('stu-s2').style.display='block'; document.getElementById('stu-p').style.width='65%'; renderQ(); },300);
+}
+
+function renderQ(){
+  const el=selectedEl;
+  const bn=document.getElementById('el-banner');
+  bn.style.cssText=`background:${el.color};border:1.5px solid ${el.bc};border-radius:10px;padding:11px;text-align:center;margin-bottom:12px;`;
+  document.getElementById('b-icon').textContent=el.icon;
+  document.getElementById('b-name').style.color=el.tc; document.getElementById('b-name').textContent=el.name;
+  document.getElementById('b-desc').style.color=el.tc; document.getElementById('b-desc').textContent=el.desc;
+  document.getElementById('q-txt').textContent=el.q;
+  const ol=document.getElementById('opts'); ol.innerHTML=''; selectedOpt=null; document.getElementById('btn-ok').disabled=true;
+  el.opts.forEach((o,i)=>{
+    const d=document.createElement('div'); d.className='opt'; d.textContent=o;
+    d.onclick=()=>{ document.querySelectorAll('.opt').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); selectedOpt=i; document.getElementById('btn-ok').disabled=false; };
+    ol.appendChild(d);
+  });
+}
+
+function confirmAns(){
+  if(selectedOpt===null) return;
+  const el=selectedEl;
+  document.querySelectorAll('.opt').forEach((o,i)=>{
+    if(i===el.correct) o.classList.add('correct');
+    else if(i===selectedOpt&&selectedOpt!==el.correct) o.classList.add('wrong');
+  });
+  document.getElementById('btn-ok').disabled=true;
+  const fb=document.getElementById('stu-fb'); fb.style.display='block';
+  if(selectedOpt===el.correct){
+    fb.className='msg msg-ok'; fb.textContent=el.msg;
+    document.getElementById('stu-p').style.width='100%';
+    publishStudentAnswer(currentUser, currentGroup.id, el);
+    const dones=['أنتِ نجمة الفصل! ⭐','تألقكِ يُبهرنا! 🌟','إجابة مثالية! 🏆','واصلي التميز! 💪'];
+    setTimeout(()=>{
+      document.getElementById('stu-s2').style.display='none';
+      document.getElementById('stu-s3').style.display='block';
+      document.getElementById('stu-done-enc').textContent=dones[Math.floor(Math.random()*dones.length)];
+      const sum=document.getElementById('stu-answer-summary');
+      sum.style.cssText=`background:${el.color};border:1.5px solid ${el.bc};border-radius:10px;padding:12px 14px;margin-top:8px;`;
+      sum.innerHTML=`<div class="ans-icon">${el.icon}</div>
+        <div class="ans-name" style="color:${el.tc}">${el.name}</div>
+        <div class="ans-def" style="color:${el.tc}">${el.def}</div>`;
+    },1400);
+  } else {
+    fb.className='msg msg-err'; fb.textContent='إجابة خاطئة، حاولي مرة أخرى 💡';
+    setTimeout(()=>{ fb.style.display='none'; document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel','correct','wrong')); selectedOpt=null; document.getElementById('btn-ok').disabled=true; },2000);
+  }
+}
+
+function publishStudentAnswer(name, groupId, el){
+  loadAnswers();
+  studentAnswers=studentAnswers.filter(a=>!(a.name===name&&a.groupId===groupId));
+  studentAnswers.push({ name, groupId, elementId:el.id, elementName:el.name, elementDef:el.def, elementIcon:el.icon, elementColor:el.color, elementTc:el.tc, elementBc:el.bc, time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) });
+  saveAnswers();
+}
+
+/* ===== LEADER ===== */
+function initLeader(){
+  document.getElementById('lead-tag').textContent=currentUser+' (قائدة)';
+  const gi=document.getElementById('leader-group-info');
+  gi.style.background=currentGroup.color;
+  gi.innerHTML=`<h3 style="color:${currentGroup.tcolor}">${currentGroup.name}</h3>
+    ${currentGroup.members.map(m=>`<span class="member-chip ${m===currentGroup.leader?'leader-chip':''}">${m}${m===currentGroup.leader?' ⭐':''}</span>`).join('')}`;
+  document.getElementById('l-total').textContent=currentGroup.members.length;
+  renderLeaderNotifs();
+  if(leaderTimer) clearInterval(leaderTimer);
+  leaderTimer=setInterval(renderLeaderNotifs, 5000);
+}
+
+function renderLeaderNotifs(){
+  loadAnswers();
+  const groupAnswers=studentAnswers.filter(a=>a.groupId===currentGroup.id);
+  const doneCount=groupAnswers.length;
+  document.getElementById('l-done').textContent=doneCount;
+  document.getElementById('l-refresh-note').textContent='آخر تحديث: '+new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
+  const nl=document.getElementById('leader-notifs'); nl.innerHTML='';
+  currentGroup.members.forEach(m=>{
+    const ans=groupAnswers.find(a=>a.name===m);
+    const d=document.createElement('div');
+    if(ans){
+      d.className='notif-card notif-done';
+      d.innerHTML=`<div class="notif-hd">
+        <span class="notif-name"><span class="notif-pulse"></span>${m}${m===currentGroup.leader?' ⭐':''}</span>
+        <span class="notif-time">${ans.time}</span>
+      </div>
+      <div class="notif-el-box" style="border-color:${ans.elementBc};">
+        <div class="notif-el-name" style="color:${ans.elementTc}">${ans.elementIcon} ${ans.elementName}</div>
+        <div class="notif-el-def" style="color:${ans.elementTc}">${ans.elementDef}</div>
+      </div>`;
+    } else {
+      d.className='notif-card notif-pending';
+      d.innerHTML=`<div class="notif-hd">
+        <span class="notif-name"><span class="notif-wait-dot"></span>${m}${m===currentGroup.leader?' ⭐':''}</span>
+        <span class="notif-time">لم تنهِ بعد</span>
+      </div>
+      <div style="font-size:12px;color:#92400e;margin-top:4px;">بانتظار الإجابة...</div>`;
+    }
+    nl.appendChild(d);
+  });
+}
+
+function sendLeader(){
+  loadAnswers();
+  const groupAnswers=studentAnswers.filter(a=>a.groupId===currentGroup.id);
+  if(groupAnswers.length===0){ alert('لا توجد إجابات بعد'); return; }
+  loadGroups();
+  groups=groups.filter(g=>g.groupId!==currentGroup.id);
+  groups.push({
+    groupId:currentGroup.id, groupName:currentGroup.name, leader:currentUser,
+    time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),
+    members:currentGroup.members.map(m=>{ const a=groupAnswers.find(x=>x.name===m); return { name:m, elementId:a?a.elementId:'', elementName:a?a.elementName:'', elementDef:a?a.elementDef:'', elementIcon:a?a.elementIcon:'❓', elementColor:a?a.elementColor:'#f1f5f9', elementTc:a?a.elementTc:'#64748b' }; })
+  });
+  saveGroups();
+  if(leaderTimer){ clearInterval(leaderTimer); leaderTimer=null; }
+  document.getElementById('leader-main').style.display='none';
+  document.getElementById('leader-done').style.display='block';
+}
+
+function reloadLeader(){ document.getElementById('leader-main').style.display='block'; document.getElementById('leader-done').style.display='none'; initLeader(); }
+
+/* ===== TEACHER ===== */
+function initTeacher(){
+  loadGroups(); loadAnswers(); renderTeacherWait();
+  if(refreshTimer) clearInterval(refreshTimer);
+  refreshTimer=setInterval(()=>{ loadGroups(); loadAnswers(); renderTeacherWait(); },10000);
+}
+
+function renderTeacherWait(){
+  const totalDone=studentAnswers.length;
+  document.getElementById('st-g').textContent=groups.length;
+  document.getElementById('st-s').textContent=totalDone;
+  const il=document.getElementById('incoming-list'); il.innerHTML='';
+  GROUPS_DATA.forEach(gd=>{
+    const sent=groups.find(g=>g.groupId===gd.id);
+    const doneInGroup=studentAnswers.filter(a=>a.groupId===gd.id).length;
+    const d=document.createElement('div');
+    d.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid #f1f5f9;';
+    d.innerHTML=`<div style="display:flex;align-items:center;gap:8px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:${sent?'#16a34a':doneInGroup>0?'#f59e0b':'#e2e8f0'};display:inline-block;"></span>
+      <span style="font-weight:600;font-size:13px;">${gd.name}</span>
+    </div>
+    <span style="font-size:11px;color:#94a3b8;">${sent?'✓ أُرسلت '+sent.time:doneInGroup+'/'+gd.members.length+' أنهت'}</span>`;
+    il.appendChild(d);
+  });
+}
+
+function showRes(){
+  document.getElementById('teach-wait').style.display='none';
+  document.getElementById('teach-res').style.display='block';
+  if(refreshTimer){ clearInterval(refreshTimer); refreshTimer=null; }
+  const out=document.getElementById('res-out'); out.innerHTML=''; let perf=0;
+  GROUPS_DATA.forEach((gd,gi)=>{
+    const sent=groups.find(g=>g.groupId===gd.id);
+    const d=document.createElement('div'); d.className='gcard';
+    if(!sent){
+      d.innerHTML=`<div class="gcard-hd"><span style="font-weight:700;font-size:14px;">${gd.name}</span><span class="badge" style="background:#fef2f2;color:#991b1b;">لم ترسل</span></div>
+        <p style="color:#94a3b8;font-size:12px;text-align:center;padding:8px 0;">لم تُرسل هذه المجموعة بعد</p>`;
+    } else {
+      const correct=sent.members.filter(m=>ELEMENTS.find(e=>e.id===m.elementId)).length;
+      const isPerfect=correct===sent.members.length;
+      if(isPerfect) perf++;
+      let rows='';
+      sent.members.forEach(m=>{
+        const found=ELEMENTS.find(e=>e.id===m.elementId);
+        rows+=`<div class="ri" style="background:${found?'#f0fdf4':'#fef2f2'}">
+          <span style="font-size:18px;">${m.elementIcon}</span>
+          <div style="flex:1;">
+            <div class="ri-name">${m.name}</div>
+            ${found?`<div style="font-size:11px;color:#475569;margin-top:2px;">${m.elementDef}</div>`:''}
+          </div>
+          <span class="ri-el" style="background:${m.elementColor||'#fef2f2'};color:${m.elementTc||'#991b1b'}">${m.elementName||'—'}</span>
+        </div>`;
+      });
+      d.innerHTML=`<div class="gcard-hd">
+        <span style="font-weight:700;font-size:14px;">${gd.name}</span>
+        <span class="badge" style="background:${isPerfect?'#f0fdf4':'#fffbeb'};color:${isPerfect?'#15803d':'#92400e'}">${correct}/${sent.members.length} ✓</span>
+      </div>${rows}
+      <div class="enc-box" style="background:${isPerfect?'#f0fdf4':'#fffbeb'};color:${isPerfect?'#15803d':'#92400e'}">${isPerfect?ENC_PERFECT[gi%ENC_PERFECT.length]:ENC_PARTIAL[gi%ENC_PARTIAL.length]}</div>`;
+    }
+    out.appendChild(d);
+  });
+  document.getElementById('gen-enc').textContent=perf===groups.length&&groups.length>0
+    ?'🌟 أداء مثالي! جميع المجموعات أتقنت عناصر Begin · While · During · End!'
+    :`⭐ ${perf} مجموعة بإجابات مثالية من ${groups.length} مجموعة مشاركة. تذكرن: كل عنصر له دور محوري في التكرار!`;
+}
+
+function backWait(){
+  document.getElementById('teach-wait').style.display='block'; document.getElementById('teach-res').style.display='none';
+  loadGroups(); loadAnswers(); renderTeacherWait();
+  refreshTimer=setInterval(()=>{ loadGroups(); loadAnswers(); renderTeacherWait(); },10000);
+}
+
+function clearAll(){
+  if(!confirm('مسح جميع البيانات؟')) return;
+  groups=[]; studentAnswers=[]; saveGroups(); saveAnswers(); renderTeacherWait();
+}
+</script>
+</body>
+</html>
