@@ -132,8 +132,8 @@ select:focus{border-color:#2563eb;background:white;}
 
     <div id="stu-s1">
       <div class="card">
-        <h2>اختاري عنصرك</h2>
-        <p style="text-align:center;margin-bottom:12px;">كل طالبة تختار عنصراً مختلفاً</p>
+        <h2>عنصرك في هذا النشاط</h2>
+        <p style="text-align:center;margin-bottom:12px;">تم تحديد عنصر مختلف لكل طالبة في المجموعة</p>
         <div class="el-grid" id="el-grid"></div>
       </div>
     </div>
@@ -252,7 +252,17 @@ const STUDENTS = [
   'وعد حسن','ياسمين احمد'
 ];
 
-const GROUPS_DATA = [
+// EL_ORDER: element ids assigned by position in members array (0-based), cycling through all 4
+const EL_ORDER = ['while','begin','during','end'];
+
+function assignElements(members){
+  // assign each member a unique element cycling: index 0→while, 1→begin, 2→during, 3→end
+  const map={};
+  members.forEach((m,i)=>{ map[m]=EL_ORDER[i%EL_ORDER.length]; });
+  return map;
+}
+
+const GROUPS_RAW = [
   { id:1, name:'المجموعة الأولى',   color:'#eff6ff', tcolor:'#1e40af', members:['ان اسامه','انوار يحيى','ايه علي','رحمه ناصر'],           leader:'رحمه ناصر' },
   { id:2, name:'المجموعة الثانية',  color:'#f0fdf4', tcolor:'#15803d', members:['رحيق هياب','رزان حسين','رقيه مصطفى','ريان رزق'],       leader:'رقيه مصطفى' },
   { id:3, name:'المجموعة الثالثة', color:'#fffbeb', tcolor:'#92400e', members:['ريف محمد','ريم سعيد','ريم عبدالرحمن','زينب حمدي'],      leader:'ريم عبدالرحمن' },
@@ -261,6 +271,13 @@ const GROUPS_DATA = [
   { id:6, name:'المجموعة السادسة', color:'#ecfdf5', tcolor:'#065f46', members:['ليان بكر','مرجانه ماجد','ملك محمود','منه محمد'],        leader:'مرجانه ماجد' },
   { id:7, name:'المجموعة السابعة', color:'#fdf2f8', tcolor:'#831843', members:['ميار عبدالمنعم','وعد حسن','ياسمين احمد'],               leader:'ياسمين احمد' }
 ];
+
+const GROUPS_DATA = GROUPS_RAW.map(g=>({ ...g, elementMap: assignElements(g.members) }));
+
+function getAssignedElement(group, memberName){
+  const elId = group.elementMap[memberName];
+  return ELEMENTS.find(e=>e.id===elId);
+}
 
 const ELEMENTS = [
   { id:'begin', name:'Begin', icon:'▶', color:'#eff6ff', tc:'#1e40af', bc:'#bfdbfe',
@@ -323,8 +340,9 @@ function onNameChange(){
   const grp=GROUPS_DATA.find(g=>g.members.includes(v));
   if(!grp){ rd.style.display='block'; rd.className='msg msg-err'; rd.textContent='الاسم غير موجود'; return; }
   const isLead=grp.leader===v;
+  const myEl=getAssignedElement(grp,v);
   rd.style.display='block'; rd.className='msg msg-info';
-  rd.innerHTML=`<strong>${grp.name}</strong><br>زميلاتكِ: ${grp.members.filter(m=>m!==v).join(' · ')}<br>${isLead?'<strong style="color:#854d0e">⭐ أنتِ قائدة المجموعة</strong>':'القائدة: '+grp.leader}`;
+  rd.innerHTML=`<strong>${grp.name}</strong><br>عنصرك المحدد: <strong style="color:#1e40af">${myEl?myEl.icon+' '+myEl.name:''}</strong><br>زميلاتكِ: ${grp.members.filter(m=>m!==v).join(' · ')}<br>${isLead?'<strong style="color:#854d0e">⭐ أنتِ قائدة المجموعة</strong>':'القائدة: '+grp.leader}`;
   bs.style.display='block'; bs.textContent=isLead?'دخول لوحة القائدة ⭐':'ابدأي النشاط ▶';
 }
 
@@ -346,24 +364,27 @@ function initStudent(){
   document.getElementById('stu-tag').textContent=currentUser;
   const gi=document.getElementById('stu-group-info');
   gi.style.background=currentGroup.color;
-  gi.innerHTML=`<h3 style="color:${currentGroup.tcolor}">${currentGroup.name}</h3>
-    ${currentGroup.members.map(m=>`<span class="member-chip ${m===currentGroup.leader?'leader-chip':''}">${m}${m===currentGroup.leader?' ⭐':''}</span>`).join('')}`;
-  const grid=document.getElementById('el-grid'); grid.innerHTML='';
-  ELEMENTS.forEach(el=>{
-    const d=document.createElement('div'); d.className='el-card'; d.id='ec-'+el.id;
-    d.style.cssText=`background:${el.color};border-color:${el.bc};`;
-    d.innerHTML=`<div class="el-icon">${el.icon}</div><div class="el-name" style="color:${el.tc}">${el.name}</div><div class="el-hint" style="color:${el.tc}">اختاري هذا</div>`;
-    d.onclick=()=>pickEl(el.id);
-    grid.appendChild(d);
-  });
-}
+  const memberChips=currentGroup.members.map(m=>{
+    const mEl=getAssignedElement(currentGroup,m);
+    const isLead=m===currentGroup.leader;
+    return `<span class="member-chip ${isLead?'leader-chip':''}">${m}${isLead?' ⭐':''} <span style="font-size:10px;opacity:.75;">(${mEl?mEl.name:''})</span></span>`;
+  }).join('');
+  gi.innerHTML=`<h3 style="color:${currentGroup.tcolor}">${currentGroup.name}</h3>${memberChips}`;
 
-function pickEl(id){
-  document.querySelectorAll('.el-card').forEach(c=>c.classList.remove('sel'));
-  document.getElementById('ec-'+id).classList.add('sel');
-  selectedEl=ELEMENTS.find(e=>e.id===id);
-  document.getElementById('stu-p').style.width='45%';
-  setTimeout(()=>{ document.getElementById('stu-s1').style.display='none'; document.getElementById('stu-s2').style.display='block'; document.getElementById('stu-p').style.width='65%'; renderQ(); },300);
+  selectedEl=getAssignedElement(currentGroup,currentUser);
+  const grid=document.getElementById('el-grid'); grid.innerHTML='';
+  if(selectedEl){
+    const d=document.createElement('div'); d.className='el-card sel';
+    d.style.cssText=`background:${selectedEl.color};border-color:${selectedEl.bc};cursor:default;`;
+    d.innerHTML=`<div class="el-icon">${selectedEl.icon}</div><div class="el-name" style="color:${selectedEl.tc}">${selectedEl.name}</div><div class="el-hint" style="color:${selectedEl.tc}">عنصرك المحدد</div>`;
+    grid.appendChild(d);
+  }
+  const info=document.createElement('p');
+  info.style.cssText='text-align:center;margin-top:10px;font-size:13px;color:#475569;';
+  info.textContent='تم تحديد عنصرك تلقائياً — سيبدأ السؤال بعد لحظة...';
+  grid.appendChild(info);
+  document.getElementById('stu-p').style.width='30%';
+  setTimeout(()=>{ document.getElementById('stu-s1').style.display='none'; document.getElementById('stu-s2').style.display='block'; document.getElementById('stu-p').style.width='65%'; renderQ(); },2000);
 }
 
 function renderQ(){
@@ -424,12 +445,46 @@ function initLeader(){
   document.getElementById('lead-tag').textContent=currentUser+' (قائدة)';
   const gi=document.getElementById('leader-group-info');
   gi.style.background=currentGroup.color;
-  gi.innerHTML=`<h3 style="color:${currentGroup.tcolor}">${currentGroup.name}</h3>
-    ${currentGroup.members.map(m=>`<span class="member-chip ${m===currentGroup.leader?'leader-chip':''}">${m}${m===currentGroup.leader?' ⭐':''}</span>`).join('')}`;
+  const memberChips=currentGroup.members.map(m=>{
+    const mEl=getAssignedElement(currentGroup,m);
+    const isLead=m===currentGroup.leader;
+    return `<span class="member-chip ${isLead?'leader-chip':''}">${m}${isLead?' ⭐':''} <span style="font-size:10px;opacity:.75;">(${mEl?mEl.name:''})</span></span>`;
+  }).join('');
+  gi.innerHTML=`<h3 style="color:${currentGroup.tcolor}">${currentGroup.name}</h3>${memberChips}`;
   document.getElementById('l-total').textContent=currentGroup.members.length;
+  renderLeaderOwnQuiz();
   renderLeaderNotifs();
   if(leaderTimer) clearInterval(leaderTimer);
-  leaderTimer=setInterval(renderLeaderNotifs, 5000);
+  leaderTimer=setInterval(()=>{ renderLeaderOwnQuiz(); renderLeaderNotifs(); },5000);
+}
+
+function renderLeaderOwnQuiz(){
+  loadAnswers();
+  const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
+  let box=document.getElementById('leader-own-quiz-box');
+  if(!box){
+    box=document.createElement('div'); box.id='leader-own-quiz-box'; box.style.marginBottom='12px';
+    const lm=document.getElementById('leader-main');
+    lm.insertBefore(box, lm.querySelector('.leader-stats'));
+  }
+  if(!myAns){
+    const myEl=getAssignedElement(currentGroup,currentUser);
+    box.innerHTML=`<div class="msg msg-info" style="margin-bottom:8px;">⭐ عليكِ الإجابة على عنصرك <strong>(${myEl?myEl.name:''})</strong> قبل إرسال المجموعة</div>
+      <button class="btn btn-blue" onclick="leaderDoQuiz()">أجيبي على عنصرك الآن ▶</button>`;
+  } else {
+    box.innerHTML=`<div class="msg msg-ok" style="margin-bottom:8px;">✅ أجبتِ على عنصرك <strong>(${myAns.elementName})</strong> بنجاح!</div>`;
+  }
+}
+
+function leaderDoQuiz(){
+  if(leaderTimer){ clearInterval(leaderTimer); leaderTimer=null; }
+  show('s-student'); initStudent();
+  const checkDone=setInterval(()=>{
+    if(document.getElementById('stu-s3').style.display!=='none'){
+      clearInterval(checkDone);
+      setTimeout(()=>{ show('s-leader'); initLeader(); },1800);
+    }
+  },600);
 }
 
 function renderLeaderNotifs(){
@@ -466,6 +521,8 @@ function renderLeaderNotifs(){
 
 function sendLeader(){
   loadAnswers();
+  const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
+  if(!myAns){ alert('يجب عليكِ أولاً الإجابة على عنصرك قبل الإرسال ⭐'); return; }
   const groupAnswers=studentAnswers.filter(a=>a.groupId===currentGroup.id);
   if(groupAnswers.length===0){ alert('لا توجد إجابات بعد'); return; }
   loadGroups();
