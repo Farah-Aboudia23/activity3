@@ -84,13 +84,10 @@ select:focus{border-color:#2563eb;background:white;}
 .answer-summary{border-radius:10px;padding:12px 14px;margin-top:8px;}
 .answer-summary .ans-name{font-size:20px;font-weight:800;margin:4px 0 2px;}
 .answer-summary .ans-def{font-size:13px;line-height:1.55;}
-.loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.85);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
-.spinner{width:40px;height:40px;border:4px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}</style>
+</style>
 </head>
 <body>
 
-<div id="loading-overlay" class="loading-overlay" style="display:none;"><div class="spinner"></div><p style="font-size:13px;color:#64748b;">جاري التحميل...</p></div>
 <div class="header">
   <h1>🎮 لعبة عناصر التكرار في Alice</h1>
   <p>نشاط جماعي — 7 مجموعات</p>
@@ -181,13 +178,11 @@ select:focus{border-color:#2563eb;background:white;}
     <!-- STEP 3: Done -->
     <div id="stu-s3" style="display:none;">
       <div class="card done-c">
-        <div class="big">⭐</div>
-        <h2 style="font-size:22px;color:#1e293b;">أحسنتِ!</h2>
-        <div id="stu-done-enc" class="msg" style="background:#f0fff4;border:1.5px solid #86efac;color:#15803d;margin-top:8px;font-weight:700;font-size:15px;"></div>
-        <!-- Element answer box -->
-        <div id="stu-answer-summary" class="answer-summary" style="text-align:center;margin-top:12px;"></div>
-        <!-- Sent to leader confirmation -->
-        <div id="stu-sent-box" class="msg" style="background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;margin-top:12px;font-size:13px;font-weight:600;">
+        <div class="big">🌟</div>
+        <h2>أحسنتِ!</h2>
+        <div id="stu-done-enc" class="msg msg-ok" style="margin-top:8px;font-weight:700;font-size:14px;"></div>
+        <div id="stu-answer-summary" class="answer-summary" style="text-align:right;"></div>
+        <div class="msg" style="background:#fffbeb;color:#92400e;border:1.5px solid #fde68a;margin-top:10px;font-size:12px;">
           تم إرسال إجابتكِ لقائدة المجموعة تلقائياً ✓
         </div>
         <p style="color:#64748b;font-size:12px;margin-top:8px;text-align:center;" id="done-note"></p>
@@ -325,57 +320,57 @@ let currentUser='', currentGroup=null, isLeader=false, isLeaderQuizMode=false;
 let selectedEl=null, selectedOpt1=null, selectedOpt2=null;
 let groups=[], studentAnswers=[], refreshTimer=null, leaderTimer=null;
 
-// ── FIREBASE REALTIME DATABASE ──────────────────────────────────────────────
+// ── FIREBASE CONFIG ────────────────────────────────────────────────────────────
 const FB_URL = 'https://schoolproject-97946-default-rtdb.firebaseio.com';
 
-function showLoading(){ document.getElementById('loading-overlay').style.display='flex'; }
-function hideLoading(){ document.getElementById('loading-overlay').style.display='none'; }
-
 async function fbGet(path){
-  try{ const r=await fetch(FB_URL+'/'+path+'.json'); const d=await r.json(); return d||null; }catch(e){ return null; }
+  try{
+    const r=await fetch(`${FB_URL}/${path}.json`);
+    const d=await r.json();
+    return d||null;
+  }catch(e){ console.error('fbGet error',e); return null; }
 }
-async function fbSet(path,val){
-  try{ await fetch(FB_URL+'/'+path+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(val)}); }catch(e){}
+
+async function fbSet(path,value){
+  try{
+    await fetch(`${FB_URL}/${path}.json`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(value)
+    });
+  }catch(e){ console.error('fbSet error',e); }
 }
+
 async function fbDelete(path){
-  try{ await fetch(FB_URL+'/'+path+'.json',{method:'DELETE'}); }catch(e){}
+  try{
+    await fetch(`${FB_URL}/${path}.json`,{method:'DELETE'});
+  }catch(e){ console.error('fbDelete error',e); }
 }
 
-// Real-time listeners via Firebase SSE streaming
-let answersStream=null, groupsStream=null;
-function startListeners(){
-  if(answersStream) answersStream.close();
-  answersStream=new EventSource(FB_URL+'/alice_v6_answers.json');
-  answersStream.addEventListener('put',function(e){
-    try{ const d=JSON.parse(e.data); studentAnswers=d.data?Object.values(d.data):[]; }catch(_){ studentAnswers=[]; }
-    if(document.getElementById('s-leader').classList.contains('active')&&document.getElementById('leader-main').style.display!=='none'){ renderLeaderNotifs(); checkLeaderQuizStatus(); }
-    if(document.getElementById('s-teacher').classList.contains('active')){ renderTeacherWait(); }
-  });
-  answersStream.addEventListener('patch',function(e){
-    try{ const d=JSON.parse(e.data); if(d.data){ Object.values(d.data).forEach(a=>{ studentAnswers=studentAnswers.filter(x=>!(x.name===a.name&&x.groupId===a.groupId)); if(a)studentAnswers.push(a); }); } }catch(_){}
-    if(document.getElementById('s-leader').classList.contains('active')&&document.getElementById('leader-main').style.display!=='none'){ renderLeaderNotifs(); checkLeaderQuizStatus(); }
-    if(document.getElementById('s-teacher').classList.contains('active')){ renderTeacherWait(); }
-  });
-
-  if(groupsStream) groupsStream.close();
-  groupsStream=new EventSource(FB_URL+'/alice_v6_groups.json');
-  groupsStream.addEventListener('put',function(e){
-    try{ const d=JSON.parse(e.data); groups=d.data?Object.values(d.data):[]; }catch(_){ groups=[]; }
-    if(document.getElementById('s-teacher').classList.contains('active')){ renderTeacherWait(); }
-  });
-  groupsStream.addEventListener('patch',function(e){
-    try{ const d=JSON.parse(e.data); if(d.data){ Object.values(d.data).forEach(g=>{ groups=groups.filter(x=>x.groupId!==g.groupId); if(g)groups.push(g); }); } }catch(_){}
-    if(document.getElementById('s-teacher').classList.contains('active')){ renderTeacherWait(); }
-  });
+// ── DATA FUNCTIONS (async, Firebase-backed) ────────────────────────────────────
+async function loadGroups(){
+  const d=await fbGet('alice_v6/groups');
+  groups=d?Object.values(d):[];
 }
-
-async function loadGroups(){ const d=await fbGet('alice_v6_groups'); groups=d?Object.values(d):[]; }
-async function saveGroups(){ const obj={}; groups.forEach(g=>{ obj['g'+g.groupId]=g; }); await fbSet('alice_v6_groups',obj); }
-async function loadAnswers(){ const d=await fbGet('alice_v6_answers'); studentAnswers=d?Object.values(d):[]; }
-async function saveAnswers(){ const obj={}; studentAnswers.forEach(a=>{ obj[a.name.replace(/[^a-zA-Z؀-ۿ0-9]/g,'_')+'_'+a.groupId]=a; }); await fbSet('alice_v6_answers',obj); }
+async function saveGroups(){
+  // Save as object keyed by groupId for easy lookup
+  const obj={};
+  groups.forEach(g=>{ obj[g.groupId]=g; });
+  await fbSet('alice_v6/groups',obj);
+}
+async function loadAnswers(){
+  const d=await fbGet('alice_v6/answers');
+  studentAnswers=d?Object.values(d):[];
+}
+async function saveAnswers(){
+  // Key answers by name_groupId
+  const obj={};
+  studentAnswers.forEach(a=>{ obj[a.name.replace(/\s/g,'_')+'_'+a.groupId]=a; });
+  await fbSet('alice_v6/answers',obj);
+}
 
 // ── INIT ───────────────────────────────────────────────────────────────────────
-window.onload=async function(){
+window.onload=function(){
   ['diag0','diag1'].forEach(id=>document.getElementById(id).src=DIAGRAM_SRC);
   const sel=document.getElementById('sel-name');
   [...STUDENTS].sort((a,b)=>a.localeCompare(b,'ar')).forEach(n=>{
@@ -407,16 +402,14 @@ function onNameChange(){
 async function startApp(){
   const v=document.getElementById('sel-name').value;
   if(!v||v==='__teacher__') return;
-  showLoading();
   currentUser=v;
   currentGroup=GROUPS_DATA.find(g=>g.members.includes(v));
   isLeader=currentGroup&&currentGroup.leader===v;
   if(isLeader){ show('s-leader'); await initLeader(); }
   else { show('s-student'); initStudentQuiz(false); }
-  hideLoading();
 }
 
-async function goTeacher(){ showLoading(); show('s-teacher'); await initTeacher(); hideLoading(); }
+async function goTeacher(){ show('s-teacher'); await initTeacher(); }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 
 // ── QUIZ (shared by student AND leader) ───────────────────────────────────────
@@ -609,12 +602,12 @@ async function initLeader(){
     </div>`;
   }
 
-  renderLeaderNotifs();
+  await renderLeaderNotifs();
   if(leaderTimer) clearInterval(leaderTimer);
-  leaderTimer=setInterval(()=>{ renderLeaderNotifs(); checkLeaderQuizStatus(); },8000);
+  leaderTimer=setInterval(async()=>{ await renderLeaderNotifs(); await checkLeaderQuizStatus(); },5000);
 }
 
-async function startLeaderQuiz(){
+function startLeaderQuiz(){
   if(leaderTimer){ clearInterval(leaderTimer); leaderTimer=null; }
   show('s-student'); initStudentQuiz(true);
 }
@@ -665,7 +658,6 @@ async function sendLeader(){
   await loadAnswers();
   const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
   if(!myAns){ alert('يجب عليكِ الإجابة على عنصرك أولاً ⭐'); return; }
-  showLoading();
   const ga=studentAnswers.filter(a=>a.groupId===currentGroup.id);
   await loadGroups();
   groups=groups.filter(g=>g.groupId!==currentGroup.id);
@@ -678,21 +670,21 @@ async function sendLeader(){
   });
   await saveGroups();
   if(leaderTimer){ clearInterval(leaderTimer); leaderTimer=null; }
-  hideLoading();
   document.getElementById('leader-main').style.display='none';
   document.getElementById('leader-done').style.display='block';
 }
 
-async function reloadLeader(){
+function reloadLeader(){
   document.getElementById('leader-main').style.display='block';
   document.getElementById('leader-done').style.display='none';
-  await initLeader();
+  initLeader();
 }
 
 // ── TEACHER ────────────────────────────────────────────────────────────────────
 async function initTeacher(){
   await loadGroups(); await loadAnswers(); renderTeacherWait();
-  startListeners();
+  if(refreshTimer) clearInterval(refreshTimer);
+  refreshTimer=setInterval(async()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
 }
 
 function renderTeacherWait(){
@@ -713,13 +705,10 @@ function renderTeacherWait(){
   });
 }
 
-async function showRes(){
-  await loadGroups(); await loadAnswers();
+function showRes(){
   document.getElementById('teach-wait').style.display='none';
   document.getElementById('teach-res').style.display='block';
   if(refreshTimer){ clearInterval(refreshTimer); refreshTimer=null; }
-  if(groupsStream) groupsStream.close();
-  if(answersStream) answersStream.close();
   const out=document.getElementById('res-out'); out.innerHTML=''; let perf=0;
   GROUPS_DATA.forEach((gd,gi)=>{
     const sent=groups.find(g=>g.groupId===gd.id);
@@ -761,12 +750,13 @@ async function backWait(){
   document.getElementById('teach-wait').style.display='block';
   document.getElementById('teach-res').style.display='none';
   await loadGroups(); await loadAnswers(); renderTeacherWait();
-  startListeners();
+  refreshTimer=setInterval(async()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
 }
 
 async function clearAll(){
   if(!confirm('مسح جميع البيانات؟')) return;
-  groups=[]; studentAnswers=[]; await saveGroups(); await saveAnswers(); renderTeacherWait();
+  await fbDelete('alice_v6');
+  groups=[]; studentAnswers=[]; renderTeacherWait();
 }
 </script>
 </body>
