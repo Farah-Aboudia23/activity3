@@ -315,58 +315,51 @@ const GROUPS_DATA = GROUPS_RAW.map(g=>({ ...g, elementMap: buildMap(g.members) }
 function buildMap(members){ const m={}; members.forEach((n,i)=>{ m[n]=EL_ORDER[i%EL_ORDER.length]; }); return m; }
 function getEl(grp,name){ return ELEMENTS[grp.elementMap[name]]; }
 
+// ── FIREBASE CONFIG ────────────────────────────────────────────────────────────
+const FB_URL = 'https://schoolproject-97946-default-rtdb.firebaseio.com';
+
+async function fbGet(path) {
+  try {
+    const r = await fetch(`${FB_URL}/${path}.json`);
+    const d = await r.json();
+    return d || null;
+  } catch(e) { console.error('fbGet error', e); return null; }
+}
+
+async function fbSet(path, value) {
+  try {
+    await fetch(`${FB_URL}/${path}.json`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(value)
+    });
+  } catch(e) { console.error('fbSet error', e); }
+}
+
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let currentUser='', currentGroup=null, isLeader=false, isLeaderQuizMode=false;
 let selectedEl=null, selectedOpt1=null, selectedOpt2=null;
 let groups=[], studentAnswers=[], refreshTimer=null, leaderTimer=null;
 
-// ── FIREBASE CONFIG ────────────────────────────────────────────────────────────
-const FB_URL = 'https://schoolproject-97946-default-rtdb.firebaseio.com';
-
-async function fbGet(path){
-  try{
-    const r=await fetch(`${FB_URL}/${path}.json`);
-    const d=await r.json();
-    return d||null;
-  }catch(e){ console.error('fbGet error',e); return null; }
-}
-
-async function fbSet(path,value){
-  try{
-    await fetch(`${FB_URL}/${path}.json`,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(value)
-    });
-  }catch(e){ console.error('fbSet error',e); }
-}
-
-async function fbDelete(path){
-  try{
-    await fetch(`${FB_URL}/${path}.json`,{method:'DELETE'});
-  }catch(e){ console.error('fbDelete error',e); }
-}
-
-// ── DATA FUNCTIONS (async, Firebase-backed) ────────────────────────────────────
-async function loadGroups(){
-  const d=await fbGet('alice_v6/groups');
-  groups=d?Object.values(d):[];
+async function loadGroups(){ 
+  const d = await fbGet('alice_v6_groups');
+  groups = d ? Object.values(d) : [];
 }
 async function saveGroups(){
-  // Save as object keyed by groupId for easy lookup
-  const obj={};
-  groups.forEach(g=>{ obj[g.groupId]=g; });
-  await fbSet('alice_v6/groups',obj);
+  for(const g of groups){
+    await fbSet('alice_v6_groups/g' + g.groupId, g);
+  }
 }
-async function loadAnswers(){
-  const d=await fbGet('alice_v6/answers');
-  studentAnswers=d?Object.values(d):[];
+async function loadAnswers(){ 
+  const d = await fbGet('alice_v6_answers');
+  studentAnswers = d ? Object.values(d) : [];
+}
+async function saveOneAnswer(ans){
+  const key = ans.name.replace(/\s+/g,'_') + '_g' + ans.groupId;
+  await fbSet('alice_v6_answers/' + key, ans);
 }
 async function saveAnswers(){
-  // Key answers by name_groupId
-  const obj={};
-  studentAnswers.forEach(a=>{ obj[a.name.replace(/\s/g,'_')+'_'+a.groupId]=a; });
-  await fbSet('alice_v6/answers',obj);
+  await fbSet('alice_v6_answers', null);
 }
 
 // ── INIT ───────────────────────────────────────────────────────────────────────
@@ -399,17 +392,17 @@ function onNameChange(){
   bs.style.display='block'; bs.textContent=isLead?'دخول لوحة القائدة ⭐':'ابدأي النشاط ▶';
 }
 
-async function startApp(){
+function startApp(){
   const v=document.getElementById('sel-name').value;
   if(!v||v==='__teacher__') return;
   currentUser=v;
   currentGroup=GROUPS_DATA.find(g=>g.members.includes(v));
   isLeader=currentGroup&&currentGroup.leader===v;
-  if(isLeader){ show('s-leader'); await initLeader(); }
+  if(isLeader){ show('s-leader'); initLeader(); }
   else { show('s-student'); initStudentQuiz(false); }
 }
 
-async function goTeacher(){ show('s-teacher'); await initTeacher(); }
+function goTeacher(){ show('s-teacher'); initTeacher(); }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 
 // ── QUIZ (shared by student AND leader) ───────────────────────────────────────
@@ -561,12 +554,10 @@ async function confirmQ2(){
 }
 
 async function publishAnswer(name,groupId,el){
-  await loadAnswers();
-  studentAnswers=studentAnswers.filter(a=>!(a.name===name&&a.groupId===groupId));
-  studentAnswers.push({ name, groupId, elementId:el.id, elementName:el.name, elementDef:el.def,
+  const ans = { name, groupId, elementId:el.id, elementName:el.name, elementDef:el.def,
     elementIcon:el.icon, elementColor:el.color, elementTc:el.tc, elementBc:el.bc,
-    time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) });
-  await saveAnswers();
+    time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) };
+  await saveOneAnswer(ans);
 }
 
 // ── LEADER ─────────────────────────────────────────────────────────────────────
@@ -604,7 +595,7 @@ async function initLeader(){
 
   await renderLeaderNotifs();
   if(leaderTimer) clearInterval(leaderTimer);
-  leaderTimer=setInterval(async()=>{ await renderLeaderNotifs(); await checkLeaderQuizStatus(); },5000);
+  leaderTimer=setInterval(async ()=>{ await renderLeaderNotifs(); await checkLeaderQuizStatus(); },5000);
 }
 
 function startLeaderQuiz(){
@@ -659,16 +650,14 @@ async function sendLeader(){
   const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
   if(!myAns){ alert('يجب عليكِ الإجابة على عنصرك أولاً ⭐'); return; }
   const ga=studentAnswers.filter(a=>a.groupId===currentGroup.id);
-  await loadGroups();
-  groups=groups.filter(g=>g.groupId!==currentGroup.id);
-  groups.push({ groupId:currentGroup.id, groupName:currentGroup.name, leader:currentUser,
+  const groupData = { groupId:currentGroup.id, groupName:currentGroup.name, leader:currentUser,
     time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),
     members:currentGroup.members.map(m=>{ const a=ga.find(x=>x.name===m);
       return { name:m, elementId:a?a.elementId:'', elementName:a?a.elementName:'',
         elementDef:a?a.elementDef:'', elementIcon:a?a.elementIcon:'❓',
         elementColor:a?a.elementColor:'#f1f5f9', elementTc:a?a.elementTc:'#64748b' }; })
-  });
-  await saveGroups();
+  };
+  await fbSet('alice_v6_groups/g' + currentGroup.id, groupData);
   if(leaderTimer){ clearInterval(leaderTimer); leaderTimer=null; }
   document.getElementById('leader-main').style.display='none';
   document.getElementById('leader-done').style.display='block';
@@ -684,7 +673,7 @@ function reloadLeader(){
 async function initTeacher(){
   await loadGroups(); await loadAnswers(); renderTeacherWait();
   if(refreshTimer) clearInterval(refreshTimer);
-  refreshTimer=setInterval(async()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
+  refreshTimer=setInterval(async ()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
 }
 
 function renderTeacherWait(){
@@ -750,12 +739,13 @@ async function backWait(){
   document.getElementById('teach-wait').style.display='block';
   document.getElementById('teach-res').style.display='none';
   await loadGroups(); await loadAnswers(); renderTeacherWait();
-  refreshTimer=setInterval(async()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
+  refreshTimer=setInterval(async ()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
 }
 
 async function clearAll(){
   if(!confirm('مسح جميع البيانات؟')) return;
-  await fbDelete('alice_v6');
+  await fbSet('alice_v6_answers', null);
+  await fbSet('alice_v6_groups', null);
   groups=[]; studentAnswers=[]; renderTeacherWait();
 }
 </script>
