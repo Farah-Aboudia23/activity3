@@ -343,14 +343,24 @@ let groups=[], studentAnswers=[], refreshTimer=null, leaderTimer=null;
 
 async function loadGroups(){ 
   const d = await fbGet('alice_v6_groups');
-  groups = d ? (Array.isArray(d) ? d : Object.values(d)) : [];
+  groups = d ? Object.values(d) : [];
 }
-async function saveGroups(){ await fbSet('alice_v6_groups', groups); }
+async function saveGroups(){
+  for(const g of groups){
+    await fbSet('alice_v6_groups/g' + g.groupId, g);
+  }
+}
 async function loadAnswers(){ 
   const d = await fbGet('alice_v6_answers');
-  studentAnswers = d ? (Array.isArray(d) ? d : Object.values(d)) : [];
+  studentAnswers = d ? Object.values(d) : [];
 }
-async function saveAnswers(){ await fbSet('alice_v6_answers', studentAnswers); }
+async function saveOneAnswer(ans){
+  const key = ans.name.replace(/\s+/g,'_') + '_g' + ans.groupId;
+  await fbSet('alice_v6_answers/' + key, ans);
+}
+async function saveAnswers(){
+  await fbSet('alice_v6_answers', null);
+}
 
 // ── INIT ───────────────────────────────────────────────────────────────────────
 window.onload=function(){
@@ -544,12 +554,10 @@ async function confirmQ2(){
 }
 
 async function publishAnswer(name,groupId,el){
-  await loadAnswers();
-  studentAnswers=studentAnswers.filter(a=>!(a.name===name&&a.groupId===groupId));
-  studentAnswers.push({ name, groupId, elementId:el.id, elementName:el.name, elementDef:el.def,
+  const ans = { name, groupId, elementId:el.id, elementName:el.name, elementDef:el.def,
     elementIcon:el.icon, elementColor:el.color, elementTc:el.tc, elementBc:el.bc,
-    time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) });
-  await saveAnswers();
+    time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}) };
+  await saveOneAnswer(ans);
 }
 
 // ── LEADER ─────────────────────────────────────────────────────────────────────
@@ -642,16 +650,14 @@ async function sendLeader(){
   const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
   if(!myAns){ alert('يجب عليكِ الإجابة على عنصرك أولاً ⭐'); return; }
   const ga=studentAnswers.filter(a=>a.groupId===currentGroup.id);
-  await loadGroups();
-  groups=groups.filter(g=>g.groupId!==currentGroup.id);
-  groups.push({ groupId:currentGroup.id, groupName:currentGroup.name, leader:currentUser,
+  const groupData = { groupId:currentGroup.id, groupName:currentGroup.name, leader:currentUser,
     time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),
     members:currentGroup.members.map(m=>{ const a=ga.find(x=>x.name===m);
       return { name:m, elementId:a?a.elementId:'', elementName:a?a.elementName:'',
         elementDef:a?a.elementDef:'', elementIcon:a?a.elementIcon:'❓',
         elementColor:a?a.elementColor:'#f1f5f9', elementTc:a?a.elementTc:'#64748b' }; })
-  });
-  await saveGroups();
+  };
+  await fbSet('alice_v6_groups/g' + currentGroup.id, groupData);
   if(leaderTimer){ clearInterval(leaderTimer); leaderTimer=null; }
   document.getElementById('leader-main').style.display='none';
   document.getElementById('leader-done').style.display='block';
@@ -738,7 +744,9 @@ async function backWait(){
 
 async function clearAll(){
   if(!confirm('مسح جميع البيانات؟')) return;
-  groups=[]; studentAnswers=[]; await saveGroups(); await saveAnswers(); renderTeacherWait();
+  await fbSet('alice_v6_answers', null);
+  await fbSet('alice_v6_groups', null);
+  groups=[]; studentAnswers=[]; renderTeacherWait();
 }
 </script>
 </body>
