@@ -315,25 +315,24 @@ const GROUPS_DATA = GROUPS_RAW.map(g=>({ ...g, elementMap: buildMap(g.members) }
 function buildMap(members){ const m={}; members.forEach((n,i)=>{ m[n]=EL_ORDER[i%EL_ORDER.length]; }); return m; }
 function getEl(grp,name){ return ELEMENTS[grp.elementMap[name]]; }
 
-// ── FIREBASE CONFIG ────────────────────────────────────────────────────────────
-const FB_URL = 'https://schoolproject-97946-default-rtdb.firebaseio.com';
+// ── FIREBASE ───────────────────────────────────────────────────────────────────
+const FB = 'https://schoolproject-97946-default-rtdb.firebaseio.com';
 
-async function fbGet(path) {
-  try {
-    const r = await fetch(`${FB_URL}/${path}.json`);
+async function fbGet(path){
+  try{
+    const r = await fetch(FB+'/'+path+'.json');
     const d = await r.json();
-    return d || null;
-  } catch(e) { console.error('fbGet error', e); return null; }
+    return d;
+  }catch(e){ console.error('fbGet',e); return null; }
 }
-
-async function fbSet(path, value) {
-  try {
-    await fetch(`${FB_URL}/${path}.json`, {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(value)
+async function fbSet(path, val){
+  try{
+    await fetch(FB+'/'+path+'.json',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(val)
     });
-  } catch(e) { console.error('fbSet error', e); }
+  }catch(e){ console.error('fbSet',e); }
 }
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
@@ -341,25 +340,29 @@ let currentUser='', currentGroup=null, isLeader=false, isLeaderQuizMode=false;
 let selectedEl=null, selectedOpt1=null, selectedOpt2=null;
 let groups=[], studentAnswers=[], refreshTimer=null, leaderTimer=null;
 
-async function loadGroups(){ 
-  const d = await fbGet('alice_v6_groups');
-  groups = d ? Object.values(d) : [];
+function answerKey(name, groupId){
+  // استبدال المسافات بـ _ فقط، مع الإبقاء على الحروف العربية
+  return encodeURIComponent(name).replace(/%/g,'').substring(0,30) + '_g' + groupId;
 }
-async function saveGroups(){
-  for(const g of groups){
-    await fbSet('alice_v6_groups/g' + g.groupId, g);
-  }
-}
-async function loadAnswers(){ 
-  const d = await fbGet('alice_v6_answers');
+
+async function loadAnswers(){
+  const d = await fbGet('alice_answers');
   studentAnswers = d ? Object.values(d) : [];
 }
 async function saveOneAnswer(ans){
-  const key = ans.name.replace(/\s+/g,'_') + '_g' + ans.groupId;
-  await fbSet('alice_v6_answers/' + key, ans);
+  const key = answerKey(ans.name, ans.groupId);
+  await fbSet('alice_answers/'+key, ans);
 }
-async function saveAnswers(){
-  await fbSet('alice_v6_answers', null);
+async function loadGroups(){
+  const d = await fbGet('alice_groups');
+  groups = d ? Object.values(d) : [];
+}
+async function saveOneGroup(g){
+  await fbSet('alice_groups/g'+g.groupId, g);
+}
+async function clearAllData(){
+  await fbSet('alice_answers', null);
+  await fbSet('alice_groups', null);
 }
 
 // ── INIT ───────────────────────────────────────────────────────────────────────
@@ -515,7 +518,7 @@ function showQ2(){
   });
 }
 
-async function confirmQ2(){
+function confirmQ2(){
   if(selectedOpt2===null) return;
   const el=selectedEl;
   document.querySelectorAll('#opts2 .opt').forEach((o,i)=>{
@@ -527,7 +530,10 @@ async function confirmQ2(){
   if(selectedOpt2===el.correct){
     fb.className='msg msg-ok'; fb.textContent=el.msg;
     document.getElementById('stu-p').style.width='100%';
-    await publishAnswer(currentUser,currentGroup.id,el);
+    // حفظ الإجابة في Firebase فوراً
+    publishAnswer(currentUser,currentGroup.id,el).then(()=>{
+      console.log('✅ إجابة محفوظة في Firebase');
+    });
     const dones=['أنتِ نجمة الفصل! ⭐','تألقكِ يُبهرنا! 🌟','إجابة مثالية! 🏆','واصلي التميز! 💪'];
     setTimeout(()=>{
       document.getElementById('stu-s2').style.display='none';
@@ -538,7 +544,6 @@ async function confirmQ2(){
       sum.innerHTML=`<div style="font-size:26px">${el.icon}</div>
         <div class="ans-name" style="color:${el.tc}">${el.name}</div>
         <div class="ans-def" style="color:${el.tc}">${el.def}</div>`;
-      // If leader finished quiz → go back to leader panel after delay
       if(isLeaderQuizMode){
         setTimeout(()=>{ show('s-leader'); initLeader(); },2500);
       }
@@ -572,9 +577,8 @@ async function initLeader(){
   gi.innerHTML=`<h3 style="color:${currentGroup.tcolor}">${currentGroup.name}</h3>${chips}`;
   document.getElementById('l-total').textContent=currentGroup.members.length;
 
-  // Check if leader already answered
   await loadAnswers();
-  const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
+  const myAns=studentAnswers.find(a=>a.name===currentUser&&+a.groupId===+currentGroup.id);
   let quizBox=document.getElementById('leader-quiz-box');
   if(!quizBox){
     quizBox=document.createElement('div'); quizBox.id='leader-quiz-box'; quizBox.style.marginBottom='12px';
@@ -593,9 +597,9 @@ async function initLeader(){
     </div>`;
   }
 
-  await renderLeaderNotifs();
+  renderLeaderNotifs();
   if(leaderTimer) clearInterval(leaderTimer);
-  leaderTimer=setInterval(async ()=>{ await renderLeaderNotifs(); await checkLeaderQuizStatus(); },5000);
+  leaderTimer=setInterval(async ()=>{ await renderLeaderNotifs(); await checkLeaderQuizStatus(); },4000);
 }
 
 function startLeaderQuiz(){
@@ -605,7 +609,7 @@ function startLeaderQuiz(){
 
 async function checkLeaderQuizStatus(){
   await loadAnswers();
-  const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
+  const myAns=studentAnswers.find(a=>a.name===currentUser&&+a.groupId===+currentGroup.id);
   const box=document.getElementById('leader-quiz-box');
   if(box&&myAns){
     box.innerHTML=`<div class="msg msg-ok" style="margin-bottom:8px;">
@@ -616,7 +620,7 @@ async function checkLeaderQuizStatus(){
 
 async function renderLeaderNotifs(){
   await loadAnswers();
-  const ga=studentAnswers.filter(a=>a.groupId===currentGroup.id);
+  const ga=studentAnswers.filter(a=>+a.groupId===+currentGroup.id);
   document.getElementById('l-done').textContent=ga.length;
   document.getElementById('l-refresh-note').textContent='آخر تحديث: '+new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
   const nl=document.getElementById('leader-notifs'); nl.innerHTML='';
@@ -647,17 +651,20 @@ async function renderLeaderNotifs(){
 
 async function sendLeader(){
   await loadAnswers();
-  const myAns=studentAnswers.find(a=>a.name===currentUser&&a.groupId===currentGroup.id);
+  const myAns=studentAnswers.find(a=>a.name===currentUser&&+a.groupId===+currentGroup.id);
   if(!myAns){ alert('يجب عليكِ الإجابة على عنصرك أولاً ⭐'); return; }
-  const ga=studentAnswers.filter(a=>a.groupId===currentGroup.id);
-  const groupData = { groupId:currentGroup.id, groupName:currentGroup.name, leader:currentUser,
+  const ga=studentAnswers.filter(a=>+a.groupId===+currentGroup.id);
+  const groupData = {
+    groupId:currentGroup.id, groupName:currentGroup.name, leader:currentUser,
     time:new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'}),
-    members:currentGroup.members.map(m=>{ const a=ga.find(x=>x.name===m);
+    members:currentGroup.members.map(m=>{
+      const a=ga.find(x=>x.name===m);
       return { name:m, elementId:a?a.elementId:'', elementName:a?a.elementName:'',
         elementDef:a?a.elementDef:'', elementIcon:a?a.elementIcon:'❓',
-        elementColor:a?a.elementColor:'#f1f5f9', elementTc:a?a.elementTc:'#64748b' }; })
+        elementColor:a?a.elementColor:'#f1f5f9', elementTc:a?a.elementTc:'#64748b' };
+    })
   };
-  await fbSet('alice_v6_groups/g' + currentGroup.id, groupData);
+  await saveOneGroup(groupData);
   if(leaderTimer){ clearInterval(leaderTimer); leaderTimer=null; }
   document.getElementById('leader-main').style.display='none';
   document.getElementById('leader-done').style.display='block';
@@ -673,7 +680,7 @@ function reloadLeader(){
 async function initTeacher(){
   await loadGroups(); await loadAnswers(); renderTeacherWait();
   if(refreshTimer) clearInterval(refreshTimer);
-  refreshTimer=setInterval(async ()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
+  refreshTimer=setInterval(async ()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },8000);
 }
 
 function renderTeacherWait(){
@@ -681,8 +688,8 @@ function renderTeacherWait(){
   document.getElementById('st-s').textContent=studentAnswers.length;
   const il=document.getElementById('incoming-list'); il.innerHTML='';
   GROUPS_DATA.forEach(gd=>{
-    const sent=groups.find(g=>g.groupId===gd.id);
-    const doneN=studentAnswers.filter(a=>a.groupId===gd.id).length;
+    const sent=groups.find(g=>+g.groupId===+gd.id);
+    const doneN=studentAnswers.filter(a=>+a.groupId===+gd.id).length;
     const d=document.createElement('div');
     d.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid #f1f5f9;';
     d.innerHTML=`<div style="display:flex;align-items:center;gap:8px;">
@@ -700,7 +707,7 @@ function showRes(){
   if(refreshTimer){ clearInterval(refreshTimer); refreshTimer=null; }
   const out=document.getElementById('res-out'); out.innerHTML=''; let perf=0;
   GROUPS_DATA.forEach((gd,gi)=>{
-    const sent=groups.find(g=>g.groupId===gd.id);
+    const sent=groups.find(g=>+g.groupId===+gd.id);
     const d=document.createElement('div'); d.className='gcard';
     if(!sent){
       d.innerHTML=`<div class="gcard-hd"><span style="font-weight:700;font-size:14px;">${gd.name}</span>
@@ -739,13 +746,12 @@ async function backWait(){
   document.getElementById('teach-wait').style.display='block';
   document.getElementById('teach-res').style.display='none';
   await loadGroups(); await loadAnswers(); renderTeacherWait();
-  refreshTimer=setInterval(async ()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },10000);
+  refreshTimer=setInterval(async ()=>{ await loadGroups(); await loadAnswers(); renderTeacherWait(); },8000);
 }
 
 async function clearAll(){
   if(!confirm('مسح جميع البيانات؟')) return;
-  await fbSet('alice_v6_answers', null);
-  await fbSet('alice_v6_groups', null);
+  await clearAllData();
   groups=[]; studentAnswers=[]; renderTeacherWait();
 }
 </script>
